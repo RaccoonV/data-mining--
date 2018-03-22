@@ -1,0 +1,64 @@
+#載入資料
+import pandas as pd
+data = pd.read_excel(open('C:\\Users\\User\\Desktop\\FDATA.xlsx','rb'))
+data
+
+#將文件字句做jieba切割
+import jieba as jb
+words =[]
+for i in range(140):
+    sentence = data.loc[i, 'postContent']
+    words.append(" ".join(jb.cut(sentence, cut_all=False)))
+
+#jieba的關鍵字抽取
+import jieba.analyse
+a=list()
+for x in range(140):
+    k=jieba.analyse.extract_tags(data['postContent'][x], topK=60, withWeight=False, allowPOS=())
+    a.append(k)
+cut_all=list()
+for z in range(len(a)):
+    h = " ".join(a[z])
+    cut_all.append(h)
+
+#將關鍵字抽取轉換資料型態
+from sklearn.feature_extraction.text import CountVectorizer    
+vectorizer = CountVectorizer()
+c = vectorizer.fit_transform(cut_all)
+vector = c.toarray()
+from sklearn.feature_extraction.text import TfidfTransformer
+transformer = TfidfTransformer(smooth_idf=False)
+tfidf = transformer.fit_transform(vector)
+vector2 = tfidf.toarray()
+
+#將資料做k-means分群並計算其績效值
+from sklearn import cluster, metrics
+kmeans_fit = cluster.KMeans(n_clusters = 5).fit(vector2)
+cluster_labels = kmeans_fit.labels_
+silhouette_avg = metrics.silhouette_score(vector2, cluster_labels)
+print(silhouette_avg)
+
+#將data內的maintag欄轉為數值資料
+from sklearn import tree
+from sklearn.cross_validation import train_test_split
+
+y =list()
+for i in range(140):
+    if data['mainTag'][i]=='科技':
+        y.append(0)
+    elif data['mainTag'][i]=='天氣':
+        y.append(1)
+    elif data['mainTag'][i]=='運動':
+        y.append(2)
+    elif data['mainTag'][i]=='財經':
+        y.append(3)
+    else :
+        y.append(4)
+
+#決策樹並計算準確率
+train_X, test_X, train_y, test_y = train_test_split(vector2, y, test_size = 0.25)
+clf = tree.DecisionTreeClassifier()
+vector_clf = clf.fit(train_X, train_y)
+test_y_predicted = vector_clf.predict(test_X)
+accuracy = metrics.accuracy_score(test_y, test_y_predicted)
+print(accuracy)
